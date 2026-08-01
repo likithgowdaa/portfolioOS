@@ -126,7 +126,13 @@
       "Bash(taskkill //F //IM node.exe //FI \"WINDOWTITLE ne *\")",
       "Bash(taskkill //F //PID 62108)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000)",
-      "Bash(taskkill //F //PID 27048)"
+      "Bash(taskkill //F //PID 27048)",
+      "Bash(git check-ignore *)",
+      "Bash(echo \"exit=$?\")",
+      "Bash(command -v docker)",
+      "Bash(docker version *)",
+      "Bash(command -v psql)",
+      "Bash(command -v pg_isready)"
     ]
   }
 }

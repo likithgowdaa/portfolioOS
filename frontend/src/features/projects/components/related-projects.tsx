@@ -4,27 +4,27 @@ import { motion } from "framer-motion";
 
 import { fadeInUp, stagger } from "@/lib/motion";
 
-import { getRelatedProjects } from "../data/projects";
 import { ProjectCard } from "./project-card";
 
 import type { Project } from "../data/projects";
 
 interface RelatedProjectsProps {
-  /** The project whose detail page this section appears on. */
-  current: Project;
+  /**
+   * Related projects for the current detail page — computed server-side from
+   * the published CMS collection, never the legacy dataset.
+   */
+  projects: Project[];
 }
 
 /**
  * Related projects for a detail page.
  *
- * Shows up to three projects that share the most technology with the current
- * one (excluding it), reusing the existing ProjectCard. Renders `null` when
- * nothing is related.
+ * Renders the passed-in related projects (up to three that share the most
+ * technology with the current one, excluding it), reusing the existing
+ * ProjectCard. Renders `null` when nothing is related.
  */
-export function RelatedProjects({ current }: RelatedProjectsProps) {
-  const related = getRelatedProjects(current);
-
-  if (related.length === 0) return null;
+export function RelatedProjects({ projects }: RelatedProjectsProps) {
+  if (projects.length === 0) return null;
 
   return (
     <motion.section
@@ -42,7 +42,7 @@ export function RelatedProjects({ current }: RelatedProjectsProps) {
         viewport={{ once: true, amount: 0.15 }}
         className="grid grid-cols-1 gap-6 sm:grid-cols-2 sm:gap-8 lg:grid-cols-3"
       >
-        {related.map((project) => (
+        {projects.map((project) => (
           <ProjectCard key={project.id} project={project} />
         ))}
       </motion.div>

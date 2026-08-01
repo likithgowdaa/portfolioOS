@@ -1,9 +1,10 @@
 /**
- * Projects data.
+ * Projects data — the CMS baseline.
  *
- * Every project's content and links live here — components render it verbatim
- * and hardcode nothing. A future Studio CMS will source these fields from a
- * database instead of this module.
+ * This static array is the baseline content that seeds the CMS store when no
+ * Supabase data exists yet (see `src/lib/cms/defaults.ts`). The public site
+ * renders projects from the CMS via `getPublicContent()` — components receive
+ * the resolved data as props and hardcode nothing.
  *
  * Note: `github` / `demo` / `docs` currently point at root domains as
  * placeholders. Swap them for real links once each project ships.
@@ -611,31 +612,20 @@ export const PROJECTS: readonly Project[] = [
   },
 ];
 
-/** Look up a project by its URL slug. Returns undefined if no match. */
-export function getProjectBySlug(slug: string): Project | undefined {
-  return PROJECTS.find((project) => project.slug === slug);
-}
-
-/** The subset of projects actually rendered (public visibility). */
-export function getVisibleProjects(): Project[] {
-  return PROJECTS.filter((project) => project.visibility === "public");
-}
-
-/** Slugs for generateStaticParams — all public projects. */
-export function getPublicSlugs(): string[] {
-  return getVisibleProjects().map((project) => project.slug);
-}
-
 /**
- * Related projects for a detail page: the visible projects sharing the most
- * technology with the current project, excluding it. Best match first.
+ * Related projects for a detail page — the projects sharing the most
+ * technology with `current`, excluding it. Best match first.
+ *
+ * Pure over the supplied collection: the caller (a server component) passes
+ * the published CMS projects, so hidden or deleted items can never surface
+ * here.
  */
-export function getRelatedProjects(project: Project, limit = 3): Project[] {
-  return getVisibleProjects()
-    .filter((candidate) => candidate.id !== project.id)
+export function getRelatedProjects(current: Project, projects: Project[], limit = 3): Project[] {
+  return projects
+    .filter((candidate) => candidate.id !== current.id)
     .map((candidate) => ({
       candidate,
-      score: candidate.techStack.filter((tech) => project.techStack.includes(tech)).length,
+      score: candidate.techStack.filter((tech) => current.techStack.includes(tech)).length,
     }))
     .sort((a, b) => b.score - a.score)
     .slice(0, limit)

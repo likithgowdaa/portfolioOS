@@ -42,6 +42,8 @@ const STATUS_META: Record<
 
 interface ProjectDetailProps {
   project: Project;
+  /** Related projects, derived server-side from the published CMS collection. */
+  relatedProjects: Project[];
 }
 
 /* -------------------------------------------------------------------------- */
@@ -80,7 +82,7 @@ function ListItem({ children }: { children: React.ReactNode }) {
 /*  Main component                                                            */
 /* -------------------------------------------------------------------------- */
 
-export function ProjectDetail({ project }: ProjectDetailProps) {
+export function ProjectDetail({ project, relatedProjects }: ProjectDetailProps) {
   const status = STATUS_META[project.status];
   const hasSource = project.github.length > 0;
   const hasDemo = project.demo.length > 0;
@@ -287,7 +289,7 @@ export function ProjectDetail({ project }: ProjectDetailProps) {
           </DetailSection>
         )}
 
-        <RelatedProjects current={project} />
+        <RelatedProjects projects={relatedProjects} />
       </div>
     </Container>
   );
