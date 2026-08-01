@@ -1,0 +1,36 @@
+# PortfolioOS local development stack.
+#
+#   docker compose up --build
+#
+# Values are interpolated from a root `.env` file (copy `.env.example`).
+name: portfolioos
+
+services:
+  backend:
+    build:
+      context: ./backend
+    container_name: portfolioos-backend
+    environment:
+      ENVIRONMENT: "${ENVIRONMENT:-development}"
+      LOG_LEVEL: "${LOG_LEVEL:-INFO}"
+      CORS_ORIGINS: "${CORS_ORIGINS:-http://localhost:3000}"
+      SUPABASE_URL: "${SUPABASE_URL:-}"
+      SUPABASE_ANON_KEY: "${SUPABASE_ANON_KEY:-}"
+      DATABASE_URL: "${DATABASE_URL:-}"
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: portfolioos-frontend
+    environment:
+      NEXT_PUBLIC_API_URL: "${NEXT_PUBLIC_API_URL:-http://localhost:8000}"
+      NEXT_PUBLIC_SITE_URL: "${NEXT_PUBLIC_SITE_URL:-http://localhost:3000}"
+    ports:
+      - "3000:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
