@@ -39,5 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+# Local CMS store backup / seed source (Supabase is the store since v2.3.0).
 /data/cms/
 /public/uploads/
