@@ -132,7 +132,9 @@
       "Bash(command -v docker)",
       "Bash(docker version *)",
       "Bash(command -v psql)",
-      "Bash(command -v pg_isready)"
+      "Bash(command -v pg_isready)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(git diff *)"
     ]
   }
 }

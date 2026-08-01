@@ -4,7 +4,7 @@ Single source of truth for where the project is and what comes next.
 
 ## Version
 
-**v2.3.0**
+**v2.4.0**
 
 ## Status
 
@@ -16,13 +16,23 @@ Single source of truth for where the project is and what comes next.
 
 ## Completed
 
+### v2.4.0 — Supabase Storage for Media
+
+- **Storage swap:** Studio media uploads (profile photo, project covers/gallery, resume PDF, and every image/file field) moved from the local filesystem (`public/uploads`, served via `/uploads/[name]`) to a public **Supabase Storage bucket** (`media`). The upload API, Studio UI, public rendering, and CMS persistence are unchanged in shape — only where files live differs.
+- **Storage layer** (`src/lib/media/storage.ts`, server-only): `ensureBucket` (public bucket, 10 MB cap, created on first upload), `uploadFile` (unique uuid+ext name, returns the public Storage URL), `listFiles`, `deleteFile`, `getPublicUrl`.
+- **Media API:** `/api/studio/media` (GET/POST) and `/api/studio/media/[name]` (DELETE) route through Storage with the same auth guard, allowlist (PNG/JPG/WEBP/SVG/PDF), and 10 MB limit as before — no `fs` reads or writes remain. Uploads return the full public URL, which the CMS saves exactly like any other content.
+- **Legacy compatibility:** `/uploads/[name]` now 308-redirects to the object's public Storage URL (no filesystem). It exists only to keep previously-saved `/uploads/…` references working; new uploads store full Storage URLs and never hit it.
+- **Backfill** (`npm run seed:media`, `frontend/scripts/seed-media.mjs`): uploads legacy `public/uploads/*` files into the bucket additively (safe to re-run), mirroring `seed:cms`. After it succeeds, `public/uploads` is only a migration source and can be deleted.
+- **Environment:** no new variables — Storage uses the existing `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`. Works identically locally and on Vercel (read-only filesystem).
+- **Validation:** typecheck, lint, Prettier, and the production build pass without any Supabase config (CI parity).
+
 ### v2.3.0 — Supabase CMS Store
 
 - **Persistence swap:** the CMS content store moved from the local JSON file (`data/cms/store.json`) to Supabase. `src/lib/cms/store.ts` now reads/writes 8 tables (profile, resume, contact, footer, seo as single rows; projects, journey, certifications as one row per item) through a server-side `service_role` client (`src/lib/supabase/server.ts`). The store API, Studio UI, public UI, draft/publish/status lifecycle, ordering, and CRUD behavior are unchanged — no redesign, only the persistence backend.
 - **Schema + RLS** (`supabase/schema.sql`): `cms_status` enum (draft/published/hidden/archived), JSONB `data`/`draft`, `sort_order` for collections. RLS enabled everywhere: `anon` can SELECT *published* rows only; all writes are revoked from `anon`/`authenticated`; `service_role` (server-only) does the writes.
 - **Seed** (`npm run seed:cms`, `frontend/scripts/seed-cms.mjs`): imports the existing `store.json` into Supabase additively (inserts missing rows only — safe to re-run). Migration steps live in `supabase/migration.md`.
 - **Graceful fallback:** with Supabase unconfigured/unreachable, reads degrade to the default store — the public site and CI build keep working with no env vars or network.
-- **Environment:** `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` wired into `frontend/.env`, root `.env`/`.env.example`, and the frontend container in `docker-compose.yml`. Media uploads (`public/uploads`) remain file-backed by design.
+- **Environment:** `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` wired into `frontend/.env`, root `.env`/`.env.example`, and the frontend container in `docker-compose.yml`. Media uploads were migrated to Supabase Storage in v2.4.0.
 - **Validation:** typecheck, lint, and the production build pass without any Supabase config (CI parity).
 
 ### v2.2.0 — Passphrase Authentication (auth replacement)
@@ -168,12 +178,12 @@ Single source of truth for where the project is and what comes next.
 
 - **10.1 Populate Portfolio Data** — the CMS is ready; populate real profile, projects, journey, certifications, resume, contact, footer, and SEO content via `/studio`.
 
-Next: add Analytics and Resources, migrate media uploads to Supabase Storage, and grow Preview into a pixel-perfect public-site render. The CMS content store moved to Supabase in v2.3.0; media is the remaining file-backed surface.
+Next: add Analytics and Resources, and grow Preview into a pixel-perfect public-site render. The CMS content store moved to Supabase in v2.3.0 and media uploads to Supabase Storage in v2.4.0 — no local filesystem persistence remains.
 
 ## Notes
 
 - **Deployment (v2.2.0 — production ready):** set `NEXT_PUBLIC_SITE_URL` to the real production URL — metadata, OG, canonical, sitemap, and robots all derive from it. Host the frontend (any Next.js host) and backend (FastAPI, `docker compose up`), point DNS, and load real content — profile bio/summary/funFacts, journey entries, certifications, the resume asset + availability flag, and contact email/socials — via the Studio CMS (`/studio`). Set `STUDIO_ADMIN_SECRET` (the access passphrase) and `STUDIO_SESSION_SECRET` (session signing) to unlock Studio.
-- **Not built (by design):** Analytics, Resources, backend features, and Supabase Storage for media uploads (the CMS content store moved to Supabase in v2.3.0). The Studio foundation, passphrase authentication (v2.0.0), and the Studio CMS with full editing + publish workflow (v2.1.0) are complete. v2.1.1 adds animation polish, accessibility hardening, code cleanup, and production hardening; v2.2.0 replaces Google OAuth with passphrase login; v2.3.0 moves the CMS store to Supabase.
+- **Not built (by design):** Analytics, Resources, and backend features. The Studio foundation, passphrase authentication (v2.0.0), and the Studio CMS with full editing + publish workflow (v2.1.0) are complete. v2.1.1 adds animation polish, accessibility hardening, code cleanup, and production hardening; v2.2.0 replaces Google OAuth with passphrase login; v2.3.0 moves the CMS store to Supabase; v2.4.0 moves media uploads to Supabase Storage.
 - **Studio auth is fail-closed:** passphrase login requires `STUDIO_ADMIN_SECRET` (the access passphrase) and `STUDIO_SESSION_SECRET` (session signing); without them, authentication is refused. The passphrase is compared server-side with a timing-safe comparison — it is never stored and never sent to the client. All values are documented in the root `.env.example`.
 - **Contact fields** in `src/lib/profile.ts` are intentionally empty — `email`, `github`, and `linkedin` await real values (fill them in the Studio CMS → Contact); `location` and `availability` are populated. The Contact section disappears entirely while no contact data exists — no placeholder. The "Let's Connect" button appears only once an email is set. `availability` is the single source of truth shared by Hero, About, and Contact.
 - **Resume data** in `src/lib/profile.ts` is intentionally unavailable — `resumeAvailable` is `false` and the display fields are empty until a real `frontend/public/resume.pdf` is added (along with its details, via the Studio CMS → Resume). Until then the Resume section disappears entirely — no placeholder, and the Hero / Navbar resume links are hidden.

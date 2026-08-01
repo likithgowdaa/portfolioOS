@@ -41,4 +41,7 @@ yarn-error.log*
 next-env.d.ts
 # Local CMS store backup / seed source (Supabase is the store since v2.3.0).
 /data/cms/
-# /public/uploads/
+# Studio uploads live in Supabase Storage since v2.4.0 — never on disk. This
+# directory is only a migration source for `npm run seed:media`; nothing writes
+# to it anymore.
+/public/uploads/

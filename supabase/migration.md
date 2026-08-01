@@ -74,8 +74,46 @@ and is safe to re-run.
   `store.ts`) — nothing about Supabase blocks a revert.
 - **Cleanup:** once the seed is confirmed, the local `data/cms/store.json` is
   just a backup. Keep it for reference or delete it; the app never reads it
-  anymore. Media uploads (`public/uploads`) are intentionally still file-backed —
-  migrating those to Supabase Storage is a separate task.
+  anymore. Media uploads are in Supabase Storage (see below) — once the bucket is
+  backfilled, `public/uploads` is only a migration source and can be deleted.
+
+## Media uploads → Supabase Storage (v2.4.0)
+
+Studio uploads (profile photo, project covers/gallery, resume PDF, …) used to be
+written to `frontend/public/uploads` and served from disk — which fails on
+serverless hosts (Vercel) whose filesystem is read-only (`EROFS`). Since v2.4.0
+every upload goes to a public **Storage bucket** (`media`) and the CMS stores the
+full public Storage URL, exactly like the rest of the migrated content.
+
+**What changed**
+
+- `src/lib/media/storage.ts` — server-only Supabase Storage wrapper (bucket
+  `media`, public, 10 MB cap). `uploadFile` / `listFiles` / `deleteFile` /
+  `getPublicUrl`.
+- `/api/studio/media` (GET/POST) and `/api/studio/media/[name]` (DELETE) use
+  Storage; no `fs` reads or writes remain.
+- `/uploads/[name]` now 308-redirects to the object's public Storage URL. It
+  exists only to keep previously-saved `/uploads/…` references working — new
+  uploads store full Storage URLs and never hit it.
+- `npm run seed:media` backfills legacy `public/uploads/*` files into the bucket
+  (additive — safe to re-run).
+
+### 5. Backfill legacy uploads
+
+From `frontend/`:
+
+```
+npm run seed:media
+```
+
+Uploads every file in `public/uploads` into the `media` bucket under the same
+name, so existing CMS rows that still reference `/uploads/<uuid>.<ext>` keep
+rendering (via the redirect route). Additive: files already in the bucket are
+left untouched. Once it succeeds, `public/uploads` can be removed —
+`git rm -r public/uploads`.
+
+No other setup is needed: the bucket is created automatically on first upload
+(`ensureBucket`).
 
 ## RLS model
 

@@ -1,20 +1,24 @@
-import { randomUUID } from "crypto";
-import { promises as fs } from "fs";
-import path from "path";
 import { NextRequest, NextResponse } from "next/server";
 
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth";
+import {
+  ALLOWED_EXTENSIONS,
+  MAX_BYTES,
+  MIME_TYPES,
+  listFiles,
+  uniqueName,
+  uploadFile,
+} from "@/lib/media/storage";
 
 /**
  * Media API — the shared upload system for Studio.
  *
- * Files are stored in `public/uploads/` (served as static assets) and reused
- * across entities. Allowed: PNG, JPG, WEBP, SVG, PDF. Uploads are auth-guarded.
+ * Files are stored in the Supabase Storage bucket (`media`) and reused across
+ * entities; their public Storage URLs are saved in the CMS exactly like any
+ * other content. Allowed: PNG, JPG, WEBP, SVG, PDF (≤10 MB). Uploads are
+ * auth-guarded. No local filesystem is used — the app runs on read-only
+ * serverless filesystems (Vercel).
  */
-
-const UPLOAD_DIR = path.join(process.cwd(), "public", "uploads");
-const ALLOWED_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp", ".svg", ".pdf"]);
-const MAX_BYTES = 10 * 1024 * 1024; // 10 MB
 
 interface MediaFile {
   name: string;
@@ -23,73 +27,67 @@ interface MediaFile {
   type: string;
 }
 
-async function listFiles(): Promise<MediaFile[]> {
-  let names: string[];
-  try {
-    names = await fs.readdir(UPLOAD_DIR);
-  } catch {
-    return [];
-  }
-  const files: MediaFile[] = [];
-  for (const name of names) {
-    try {
-      const stat = await fs.stat(path.join(UPLOAD_DIR, name));
-      if (!stat.isFile()) continue;
-      files.push({
-        name,
-        url: `/uploads/${name}`,
-        size: stat.size,
-        type: path.extname(name).slice(1),
-      });
-    } catch {
-      // skip unreadable entries
-    }
-  }
-  return files.sort((a, b) => b.size - a.size);
+function unauthorized(): NextResponse {
+  return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+}
+
+function badRequest(message: string): NextResponse {
+  return NextResponse.json({ error: message }, { status: 400 });
+}
+
+/** Storage is unreachable (e.g. Supabase unconfigured) — writes fail closed. */
+function storageUnavailable(error: unknown): NextResponse {
+  const message = error instanceof Error ? error.message : "unknown error";
+  return NextResponse.json({ error: `Storage unavailable: ${message}` }, { status: 503 });
 }
 
 export async function GET(req: NextRequest) {
-  if (!verifySessionToken(req.cookies.get(SESSION_COOKIE)?.value)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!verifySessionToken(req.cookies.get(SESSION_COOKIE)?.value)) return unauthorized();
+
+  try {
+    return NextResponse.json({ files: await listFiles() });
+  } catch {
+    // Reads degrade gracefully: no bucket → empty library (matches the store's
+    // read-degrades-to-default behavior).
+    return NextResponse.json({ files: [] });
   }
-  return NextResponse.json({ files: await listFiles() });
 }
 
 export async function POST(req: NextRequest) {
-  if (!verifySessionToken(req.cookies.get(SESSION_COOKIE)?.value)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  if (!verifySessionToken(req.cookies.get(SESSION_COOKIE)?.value)) return unauthorized();
 
   let form: FormData;
   try {
     form = await req.formData();
   } catch {
-    return NextResponse.json({ error: "Invalid upload" }, { status: 400 });
+    return badRequest("Invalid upload");
   }
 
   const file = form.get("file");
   if (!(file instanceof File) || file.size === 0) {
-    return NextResponse.json({ error: "Missing file" }, { status: 400 });
+    return badRequest("Missing file");
   }
-  const ext = path.extname(file.name).toLowerCase();
+  const ext = file.name.slice(file.name.lastIndexOf(".")).toLowerCase();
   if (!ALLOWED_EXTENSIONS.has(ext)) {
-    return NextResponse.json(
-      { error: "Unsupported file type. Use PNG, JPG, WEBP, SVG, or PDF." },
-      { status: 400 }
-    );
+    return badRequest("Unsupported file type. Use PNG, JPG, WEBP, SVG, or PDF.");
   }
   if (file.size > MAX_BYTES) {
-    return NextResponse.json({ error: "File exceeds the 10 MB limit" }, { status: 400 });
+    return badRequest("File exceeds the 10 MB limit");
   }
 
-  const storedName = `${randomUUID()}${ext}`;
-  await fs.mkdir(UPLOAD_DIR, { recursive: true });
-  await fs.writeFile(path.join(UPLOAD_DIR, storedName), Buffer.from(await file.arrayBuffer()));
+  const storedName = uniqueName(file.name);
+  const contentType = file.type || MIME_TYPES[ext] || "application/octet-stream";
 
-  return NextResponse.json({
-    url: `/uploads/${storedName}`,
-    name: file.name,
-    size: file.size,
-    type: ext.slice(1),
-  });
+  try {
+    const stored = await uploadFile(storedName, await file.arrayBuffer(), contentType);
+    const created: MediaFile = {
+      url: stored.url,
+      name: file.name,
+      size: stored.size,
+      type: stored.type,
+    };
+    return NextResponse.json(created);
+  } catch (error) {
+    return storageUnavailable(error);
+  }
 }
