@@ -132,6 +132,16 @@ stored or sent to the client. See `.env.example` for details.
 
 See [`CONTRIBUTING.md`](CONTRIBUTING.md) and [`docs/architecture.md`](docs/architecture.md) for details.
 
+
+## Releases
+
+- **v1.0.0** – Initial production release
+  - Supabase CMS
+  - Supabase Storage
+  - Vercel deployment
+  - Studio content management
+  - Responsive portfolio
+
 ## Project State
 
 Version **v0.0.8** · Status **About Section Complete** · Milestone **Public
