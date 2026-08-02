@@ -87,7 +87,7 @@ function TagsInput({ id, field, value, onChange }: FieldInputProps) {
   const [draft, setDraft] = useState("");
 
   const add = () => {
-    const next = draft.trim();
+    const next = draft.replace(/[\r\n]+/g, " ").trim();
     if (!next || tags.includes(next)) return;
     onChange([...tags, next]);
     setDraft("");
@@ -97,21 +97,26 @@ function TagsInput({ id, field, value, onChange }: FieldInputProps) {
     <div className="flex flex-col gap-2">
       {tags.length > 0 && (
         <ul className="flex flex-wrap gap-1.5">
-          {tags.map((tag) => (
-            <li key={tag}>
-              <Badge variant="secondary" className="gap-1 pr-1">
-                {tag}
-                <button
-                  type="button"
-                  aria-label={`Remove ${tag}`}
-                  onClick={() => onChange(tags.filter((item) => item !== tag))}
-                  className="hover:bg-foreground/10 focus-visible:ring-ring/50 rounded-full outline-none focus-visible:ring-2"
-                >
-                  <XIcon className="size-3" />
-                </button>
-              </Badge>
-            </li>
-          ))}
+          {tags.map((tag) => {
+            const label = tag.replace(/[\r\n]+/g, " ").trim();
+            return (
+              <li key={tag} className="max-w-full">
+                <Badge variant="secondary" className="max-w-full gap-1 pr-1">
+                  <span className="min-w-0 truncate" title={label}>
+                    {label}
+                  </span>
+                  <button
+                    type="button"
+                    aria-label={`Remove ${label}`}
+                    onClick={() => onChange(tags.filter((item) => item !== tag))}
+                    className="hover:bg-foreground/10 focus-visible:ring-ring/50 shrink-0 rounded-full outline-none focus-visible:ring-2"
+                  >
+                    <XIcon className="size-3" />
+                  </button>
+                </Badge>
+              </li>
+            );
+          })}
         </ul>
       )}
       <div className="flex gap-2">
